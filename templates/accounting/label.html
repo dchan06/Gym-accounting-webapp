@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Label — {{ upload.original_filename }}{% endblock %}
+{% block extra_css %}
+  .label-picker { position: relative; min-width: 220px; max-width: 320px; }
+  .label-picker-btn {
+    width: 100%;
+    text-align: left;
+    padding: 0.4rem 2rem 0.4rem 0.6rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    position: relative;
+  }
+  .label-picker-btn::after {
+    content: '';
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    margin-top: -3px;
+    border: 5px solid transparent;
+    border-top-color: var(--muted);
+  }
+  .label-picker-btn[aria-expanded="true"] { border-color: var(--accent); }
+  .label-picker-dropdown {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    margin-top: 2px;
+    z-index: 50;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+    display: flex;
+    flex-direction: column;
+    max-height: min(70vh, 360px);
+  }
+  .label-picker-dropdown[hidden] { display: none !important; }
+  .label-picker-search {
+    width: 100%;
+    margin: 0;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    border-radius: 6px 6px 0 0;
+    padding: 0.5rem 0.65rem;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.875rem;
+  }
+  .label-picker-search:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .label-picker-options {
+    overflow-y: auto;
+    flex: 1;
+    padding: 0.25rem 0;
+    max-height: 280px;
+  }
+  .label-picker-option {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 0.45rem 0.65rem;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font-size: 0.8125rem;
+    cursor: pointer;
+    line-height: 1.35;
+  }
+  .label-picker-option:hover,
+  .label-picker-option:focus {
+    background: rgba(88, 166, 255, 0.15);
+    outline: none;
+  }
+{% endblock %}
+{% block content %}
+  {% csrf_token %}
+  <h1>Label transactions — {{ upload.original_filename }}</h1>
+  <p>Month: <strong>{{ upload.month|date:"F Y" }}</strong>. Edit labels below. On CSV upload, the model only assigns a label when confidence is above your minimum (see <code>ML_AUTO_LABEL_MIN_CONFIDENCE</code> in <code>.env</code>); weaker predictions are left unlabelled. Use bookmarks to flag rows (e.g. unsure, check later, missing receipt).</p>
+  <p>
+    <a href="{% url 'accounting:save_labelled' upload.pk %}" class="btn">Save labelled data (update Metrics &amp; P&amp;L)</a>
+    <a href="{% url 'accounting:home' %}" class="btn btn-secondary">Back to home</a>
+  </p>
+
+  <section style="margin-bottom: 1.5rem;">
+    <h2>Singapore tax guidance</h2>
+    <p>Use these categories when labelling for AGM / tax:</p>
+    <ul>
+      {% for g in guidance %}
+        <li><strong>{{ g.suggested_category }}</strong>: {{ g.note }} (e.g. {{ g.keywords|join:", " }})</li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  {{ label_options|json_script:"label-options-data" }}
+
+  <table id="transactions">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Description</th>
+        <th>Debit</th>
+        <th>Credit</th>
+        <th>Bookmark</th>
+        <th>Label</th>
+        <th>Notes</th>
+        <th>Suggest</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in transactions %}
+        <tr data-tx-id="{{ t.id }}">
+          <td>{{ t.date|date:"Y-m-d" }}</td>
+          <td>{{ t.description }}{% if t.reference %} ({{ t.reference }}){% endif %}</td>
+          <td>{{ t.debit|floatformat:2|intcomma }}</td>
+          <td>{{ t.credit|floatformat:2|intcomma }}</td>
+          <td>
+            <select class="bookmark-select" data-tx-id="{{ t.id }}" title="Flag for follow-up">
+              <option value="" {% if not t.bookmark %}selected{% endif %}>—</option>
+              <option value="unsure" {% if t.bookmark == 'unsure' %}selected{% endif %}>Unsure</option>
+              <option value="check" {% if t.bookmark == 'check' %}selected{% endif %}>Check</option>
+              <option value="missing_receipt" {% if t.bookmark == 'missing_receipt' %}selected{% endif %}>Missing receipt</option>
+            </select>
+          </td>
+          <td>
+            <div class="label-picker" data-tx-id="{{ t.id }}">
+              <input type="hidden" class="label-value" value="{% if t.label_id %}{{ t.label_id }}{% endif %}">
+              <button type="button" class="label-picker-btn" aria-haspopup="listbox" aria-expanded="false">
+                {% if t.label %}{{ t.label.name }} ({{ t.label.get_category_display }}){% else %}—{% endif %}
+              </button>
+              <div class="label-picker-dropdown" hidden>
+                <input type="search" class="label-picker-search" placeholder="Search labels…" autocomplete="off" aria-label="Search labels">
+                <div class="label-picker-options" role="listbox"></div>
+              </div>
+            </div>
+          </td>
+          <td><input type="text" class="notes-input" data-tx-id="{{ t.id }}" value="{{ t.notes }}" placeholder="Notes" style="min-width: 120px;"></td>
+          <td><button type="button" class="btn-suggest btn-secondary" data-tx-id="{{ t.id }}">Suggest</button></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="8">No transactions.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p><a href="{% url 'accounting:save_labelled' upload.pk %}" class="btn">Save labelled data</a></p>
+{% endblock %}
+
+{% block extra_js %}
+  <script>
+    (function() {
+      var csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+      var base = '{% url "accounting:home" %}'.replace(/\/$/, '');
+      var labelOptionsEl = document.getElementById('label-options-data');
+      var labelOptions = labelOptionsEl ? JSON.parse(labelOptionsEl.textContent) : [];
+
+      function labelTextForId(id) {
+        if (!id) return '—';
+        var sid = String(id);
+        for (var i = 0; i < labelOptions.length; i++) {
+          if (String(labelOptions[i].id) === sid) return labelOptions[i].text;
+        }
+        return '—';
+      }
+
+      function setLabel(txId, labelId, notes) {
+        var fd = new FormData();
+        fd.append('csrfmiddlewaretoken', csrf);
+        fd.append('label_id', labelId || '');
+        fd.append('notes', notes || '');
+        fetch(base + '/api/transaction/' + txId + '/label/', { method: 'POST', body: fd, credentials: 'same-origin' })
+          .then(function(r) { return r.json(); })
+          .then(function(d) { if (d.ok) console.log('Saved'); });
+      }
+
+      function setBookmark(txId, bookmark) {
+        var fd = new FormData();
+        fd.append('csrfmiddlewaretoken', csrf);
+        fd.append('bookmark', bookmark || '');
+        fetch(base + '/api/transaction/' + txId + '/label/', { method: 'POST', body: fd, credentials: 'same-origin' })
+          .then(function(r) { return r.json(); })
+          .then(function(d) { if (d.ok) console.log('Bookmark saved'); });
+      }
+
+      var activePicker = null;
+
+      function closePicker() {
+        if (!activePicker) return;
+        var dd = activePicker.querySelector('.label-picker-dropdown');
+        var btn = activePicker.querySelector('.label-picker-btn');
+        if (dd) dd.hidden = true;
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+        activePicker = null;
+      }
+
+      function renderPickerList(picker, q) {
+        var list = picker.querySelector('.label-picker-options');
+        var low = (q || '').trim().toLowerCase();
+        list.innerHTML = '';
+        var clearBtn = document.createElement('button');
+        clearBtn.type = 'button';
+        clearBtn.className = 'label-picker-option';
+        clearBtn.setAttribute('role', 'option');
+        clearBtn.dataset.id = '';
+        clearBtn.textContent = '— (clear label)';
+        list.appendChild(clearBtn);
+        labelOptions.forEach(function(opt) {
+          if (low && opt.text.toLowerCase().indexOf(low) === -1) return;
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'label-picker-option';
+          b.setAttribute('role', 'option');
+          b.dataset.id = String(opt.id);
+          b.textContent = opt.text;
+          list.appendChild(b);
+        });
+      }
+
+      function openPicker(picker) {
+        closePicker();
+        activePicker = picker;
+        var dd = picker.querySelector('.label-picker-dropdown');
+        var btn = picker.querySelector('.label-picker-btn');
+        var search = picker.querySelector('.label-picker-search');
+        dd.hidden = false;
+        btn.setAttribute('aria-expanded', 'true');
+        search.value = '';
+        renderPickerList(picker, '');
+        setTimeout(function() { search.focus(); }, 0);
+      }
+
+      document.addEventListener('click', function(e) {
+        if (!activePicker) return;
+        if (!activePicker.contains(e.target)) closePicker();
+      });
+
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closePicker();
+      });
+
+      var table = document.getElementById('transactions');
+      if (table) {
+        table.addEventListener('click', function(e) {
+          var opt = e.target.closest('.label-picker-option');
+          if (opt) {
+            e.preventDefault();
+            var picker = opt.closest('.label-picker');
+            if (!picker) return;
+            var id = opt.dataset.id || '';
+            var txId = picker.dataset.txId;
+            picker.querySelector('.label-value').value = id;
+            picker.querySelector('.label-picker-btn').textContent = labelTextForId(id);
+            closePicker();
+            var row = picker.closest('tr');
+            setLabel(txId, id, row.querySelector('.notes-input').value);
+            return;
+          }
+          var btn = e.target.closest('.label-picker-btn');
+          if (btn) {
+            e.preventDefault();
+            e.stopPropagation();
+            var p = btn.closest('.label-picker');
+            if (activePicker === p) {
+              closePicker();
+            } else {
+              openPicker(p);
+            }
+          }
+        });
+
+        table.addEventListener('input', function(e) {
+          if (!e.target.classList.contains('label-picker-search')) return;
+          var picker = e.target.closest('.label-picker');
+          if (picker) renderPickerList(picker, e.target.value);
+        });
+      }
+
+      document.querySelectorAll('.bookmark-select').forEach(function(el) {
+        el.addEventListener('change', function() {
+          setBookmark(this.dataset.txId, this.value);
+        });
+      });
+
+      document.querySelectorAll('.notes-input').forEach(function(el) {
+        el.addEventListener('blur', function() {
+          var txId = this.dataset.txId;
+          var row = this.closest('tr');
+          var labelId = row.querySelector('.label-value').value;
+          setLabel(txId, labelId, this.value);
+        });
+      });
+
+      document.querySelectorAll('.btn-suggest').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var txId = this.dataset.txId;
+          var row = this.closest('tr');
+          var picker = row.querySelector('.label-picker');
+          fetch(base + '/api/transaction/' + txId + '/suggest/').then(function(r) { return r.json(); })
+            .then(function(d) {
+              if (d.suggestions && d.suggestions[0]) {
+                var sid = String(d.suggestions[0].id);
+                picker.querySelector('.label-value').value = sid;
+                picker.querySelector('.label-picker-btn').textContent = labelTextForId(sid);
+                setLabel(txId, sid, row.querySelector('.notes-input').value);
+              }
+            });
+        });
+      });
+    })();
+  </script>
+{% endblock %}

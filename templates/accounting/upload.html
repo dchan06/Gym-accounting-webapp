@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Upload statement — Gym Accounting{% endblock %}
+{% block content %}
+  <h1>Upload bank statement</h1>
+  <p>Upload <strong>CSV</strong>, or <strong>.xls / .xlsx</strong> exported from internet banking—the app converts Excel to transactions automatically. Columns for date, description, debit, credit (and optionally reference, balance) are detected once the transaction table begins; preamble rows are skipped. Then the model suggests labels where confidence is high; you can edit and save.</p>
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="btn">Upload and tag</button>
+  </form>
+{% endblock %}

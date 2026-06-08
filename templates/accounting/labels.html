@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Labels — Gym Accounting{% endblock %}
+{% block content %}
+  <h1>Account labels</h1>
+  <p>Labels used to categorise transactions (revenue, expense, etc.). Create and edit via <a href="{% url 'admin:accounting_accountlabel_changelist' %}">Admin</a> or add below.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Code</th>
+        <th>Category</th>
+        <th>User-defined</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for lbl in labels %}
+        <tr>
+          <td>{{ lbl.name }}</td>
+          <td>{{ lbl.code|default:"—" }}</td>
+          <td>{{ lbl.get_category_display }}</td>
+          <td>{{ lbl.is_user_defined|yesno:"Yes,No" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4">No labels. Add some in <a href="{% url 'admin:accounting_accountlabel_add' %}">Admin</a> to use when labelling transactions.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p><a href="{% url 'admin:accounting_accountlabel_add' %}" class="btn">Add label (Admin)</a></p>
+{% endblock %}

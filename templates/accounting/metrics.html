@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Metrics — Gym Accounting{% endblock %}
+{% block content %}
+  <h1>Monthly metrics</h1>
+  <p>Revenue and expenses totals by month (from saved labelled data).</p>
+  {% if metrics_list %}
+    <table>
+      <thead>
+        <tr>
+          <th>Month</th>
+          <th>Revenue</th>
+          <th>Expenses</th>
+          <th>Net</th>
+          <th>AGM</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in metrics_list %}
+          <tr>
+            <td>{{ m.month|date:"Y-m" }}</td>
+            <td>{{ m.revenue_total }}</td>
+            <td>{{ m.expenses_total }}</td>
+            <td>{{ m.net }}</td>
+            <td><a href="{% url 'accounting:download_agm' m.month|date:'Y-m' %}">Download AGM CSV</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>No metrics yet. Upload statements, label them, then use “Save labelled data” to populate metrics.</p>
+  {% endif %}
+{% endblock %}

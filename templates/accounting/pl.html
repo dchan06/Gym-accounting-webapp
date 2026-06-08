@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}P&amp;L — Gym Accounting{% endblock %}
+{% block content %}
+  <h1>Profit &amp; Loss by month</h1>
+  <p>Breakdown by label/category from saved labelled data. Rows with <strong>no label</strong> for that statement month are listed as <strong>Unlabelled revenue</strong> (money in) or <strong>Unlabelled expense</strong> (money out). Direction uses the same cash-flow rule as the rest of the app: <strong>negative debits</strong> are treated as signed outflows when your CSV uses that convention; classical debit/credit columns are combined so inflow vs outflow stays correct. Other non–revenue/expense label categories stay in the detail table but don’t change the net rows below.</p>
+  {% if overall %}
+    <h2>Overall ({{ overall.months_count }} month{{ overall.months_count|pluralize }} shown)</h2>
+    <table style="margin-bottom: 2rem;">
+      <thead>
+        <tr>
+          <th>Total revenue</th>
+          <th>Total expenses</th>
+          <th>Net profit / (loss)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>{{ overall.revenue_total|floatformat:2|intcomma }}</td>
+          <td>{{ overall.expenses_total|floatformat:2|intcomma }}</td>
+          <td><strong>{{ overall.net|floatformat:2|intcomma }}</strong></td>
+        </tr>
+      </tbody>
+    </table>
+  {% endif %}
+  {% for item in pl_by_month %}
+    <h2>{{ item.month|date:"F Y" }}</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Label</th>
+          <th>Category</th>
+          <th>Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in item.entries %}
+          <tr>
+            <td>{{ entry.label.name }}</td>
+            <td>{{ entry.label.get_category_display }}</td>
+            <td>{{ entry.amount|floatformat:2|intcomma }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <th colspan="2">Month — total revenue</th>
+          <td>{{ item.revenue_total|floatformat:2|intcomma }}</td>
+        </tr>
+        <tr>
+          <th colspan="2">Month — total expenses</th>
+          <td>{{ item.expenses_total|floatformat:2|intcomma }}</td>
+        </tr>
+        <tr>
+          <th colspan="2">Month — net profit / (loss)</th>
+          <td><strong>{{ item.net|floatformat:2|intcomma }}</strong></td>
+        </tr>
+      </tfoot>
+    </table>
+  {% empty %}
+    <p>No P&amp;L data. Save labelled data from an upload to see P&amp;L here.</p>
+  {% endfor %}
+{% endblock %}

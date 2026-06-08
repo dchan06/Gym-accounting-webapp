@@ -1,0 +1,10 @@
+# Django 5.2+ fixes template Context.__copy__ on Python 3.14 (4.2 admin breaks on 3.14)
+Django>=5.2,<6
+mysqlclient>=2.2
+python-dotenv>=1.0
+pandas>=2.0
+scikit-learn>=1.3
+numpy>=1.24
+python-dateutil>=2.8
+xlrd>=2.0
+openpyxl>=3.1

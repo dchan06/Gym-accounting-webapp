@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Home — Gym Accounting{% endblock %}
+{% block content %}
+  <h1>Gym Accounting</h1>
+  <p>Upload bank statements, label transactions with AI suggestions, then save metrics, P&L and download AGM-ready CSVs for Singapore submissions.</p>
+  <p><a href="{% url 'accounting:upload' %}" class="btn">Upload bank statement</a></p>
+  <h2>Recent uploads</h2>
+  {% if uploads %}
+    <table>
+      <thead>
+        <tr>
+          <th>File</th>
+          <th>Month</th>
+          <th>Status</th>
+          <th>Automated labelling</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in uploads %}
+          <tr>
+            <td>{{ u.original_filename }}</td>
+            <td>{{ u.month|date:"M Y" }}</td>
+            <td>
+              {% if u.status == 'processing' or u.unlabelled_count %}
+                Processing
+              {% else %}
+                {{ u.get_status_display }}
+              {% endif %}
+              {% if u.unlabelled_count or u.unsure_bookmark_count %}
+                <span style="color: var(--warning);" title="{% if u.unlabelled_count %}Unlabelled transactions. {% endif %}{% if u.unsure_bookmark_count %}Unsure bookmarks. {% endif %}">
+                  — Processing not complete{% if u.unlabelled_count and u.unsure_bookmark_count %} (unlabelled &amp; unsure){% elif u.unlabelled_count %} (unlabelled){% else %} (unsure){% endif %}
+                </span>
+              {% endif %}
+            </td>
+            <td>
+              {% if u.transaction_total %}
+                {{ u.auto_labelled_count }} / {{ u.transaction_total }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td>
+              <a href="{% url 'accounting:label_statement' u.pk %}" class="btn btn-secondary">Label / Edit</a>
+              {% if u.status != 'processing' %}
+                <a href="{% url 'accounting:save_labelled' u.pk %}" class="btn">Save &amp; update metrics</a>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>No uploads yet. <a href="{% url 'accounting:upload' %}">Upload a bank statement CSV</a> to start.</p>
+  {% endif %}
+{% endblock %}
