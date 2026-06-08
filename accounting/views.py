@@ -339,3 +339,4 @@ def labels_manage(request):
     """List and quick-add labels (user-defined)."""
     labels = AccountLabel.objects.all().order_by('category', 'name')
     return render(request, 'accounting/labels.html', {'labels': labels})
+
