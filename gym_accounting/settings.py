@@ -15,7 +15,7 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'dev-secret-change-in-productio
 
 DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.68.13']
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -102,3 +102,7 @@ LOGOUT_REDIRECT_URL = '/'
 
 # ML: only assign a label automatically on CSV upload when top prediction confidence ≥ this (0–1).
 ML_AUTO_LABEL_MIN_CONFIDENCE = float(os.environ.get('ML_AUTO_LABEL_MIN_CONFIDENCE', '0.5'))
+
+TRANSACTION_API_KEY = os.environ.get('TRANSACTION_API_KEY', '')
+
+INTEGRATION_USERNAME = os.environ.get('username', '')

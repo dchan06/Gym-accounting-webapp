@@ -11,6 +11,7 @@ from django.views.decorators.http import require_POST
 from django.utils import timezone
 from decimal import Decimal
 import csv
+import hmac
 
 from .models import (
     BankStatementUpload,
@@ -21,6 +22,7 @@ from .models import (
     MonthlyAGMAccounts,
     StatementUploadStatus,
     TransactionBookmark,
+    User, 
 )
 from .forms import BankStatementUploadForm, TransactionLabelForm
 from .services.csv_parser import parse_bank_statement_file
@@ -50,6 +52,28 @@ class _SynthPLRow:
         self.label = _SynthPLLabel(label_name, category)
         self.amount = amount
 
+def api_transactions(request): 
+    incoming_request = request.headers.get('Authorization', '').replace('Bearer', '')
+
+    if not hmac.compare_digest(incoming_request, settings.TRANSACTION_API_KEY): 
+        return JsonResponse({'error': 'Invalid API key'}, status = 401)
+
+    year = request.GET.get('year')
+    month = request.GET.get('month')
+
+    integration_username = User.objects.filter(username=settings.INTEGRATION_USERNAME).first() # In the future you can use a GET parameter to send a specific company ID
+    print(integration_username)
+    if not integration_username: 
+        return JsonResponse({'error': 'No such user found'}, status=404)
+    transaction = BankTransaction.objects.filter(upload__user=integration_username)
+    if not transaction: 
+        return JsonResponse({'error': 'No accounts found'}, status=404)
+    if year: 
+        transaction = transaction.filter(date__year=year)
+    if month: 
+        transaction = transaction.filter(date__month=month)
+    data = list(transaction.values('id', 'debit', 'credit', 'label', 'date', 'bookmarked', 'notes'))
+    return JsonResponse(data, safe=False)
 
 def _aggregate_unlabelled_for_month(month_date):
     """Sum unlabelled cash impact for uploads in ``month_date`` (+ = revenue bucket, − = expense)."""

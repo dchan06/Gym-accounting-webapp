@@ -1,9 +1,117 @@
 {% extends "base.html" %}
 {% load humanize %}
 {% block title %}P&amp;L — Gym Accounting{% endblock %}
+{% block extra_css %}
+  .pl-page-shell { position: relative; padding-right: 0; }
+  @media (min-width: 900px) {
+    .pl-page-shell { padding-right: 300px; }
+  }
+  .webhook-panel {
+    position: fixed;
+    top: 4.75rem;
+    right: 1rem;
+    width: 260px;
+    max-width: calc(100vw - 2rem);
+    max-height: min(40vh, 220px);
+    z-index: 40;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+    display: flex;
+    flex-direction: column;
+    font-size: 0.75rem;
+  }
+  .webhook-panel header {
+    padding: 0.4rem 0.65rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+  }
+  .webhook-panel-body {
+    margin: 0;
+    padding: 0.5rem 0.65rem;
+    overflow-y: auto;
+    flex: 1;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text);
+    font-family: ui-monospace, monospace;
+    font-size: 0.7rem;
+    line-height: 1.4;
+  }
+  .webhook-panel-body:empty::before {
+    content: 'No webhook data yet.';
+    color: var(--muted);
+  }
+  @media (max-width: 899px) {
+    .webhook-panel {
+      position: static;
+      width: 100%;
+      max-height: 180px;
+      margin-bottom: 1.25rem;
+    }
+    .pl-page-shell { padding-right: 0; }
+  }
+  .pl-heading-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+    margin-bottom: 0.75rem;
+  }
+  .pl-heading-row h1 { margin: 0; flex: 1; min-width: 12rem; }
+  .pl-figures-wrap {
+    position: relative;
+    border-radius: 8px;
+    min-height: 0;
+  }
+  .pl-figures-wrap.pl-figures-masked {
+    user-select: none;
+  }
+  .pl-figures-wrap.pl-figures-masked::after {
+    content: 'Figures hidden — use the button to show amounts';
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 1.5rem;
+    font-size: 0.875rem;
+    color: var(--muted);
+    background: rgba(15, 20, 25, 0.94);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    pointer-events: none;
+  }
+  .pl-figures-wrap.pl-figures-masked table,
+  .pl-figures-wrap.pl-figures-masked h2 {
+    filter: blur(14px);
+    opacity: 0.45;
+  }
+{% endblock %}
 {% block content %}
-  <h1>Profit &amp; Loss by month</h1>
+  <div class="pl-page-shell">
+    <aside class="webhook-panel" id="webhook-panel" aria-label="Webhook response display">
+      <header>Webhook</header>
+      <pre class="webhook-panel-body" id="webhook-panel-body"></pre>
+    </aside>
+
+  <div class="pl-heading-row">
+    <h1>Profit &amp; Loss by month</h1>
+    {% if overall or pl_by_month %}
+      <button type="button" id="pl-toggle-figures" class="btn btn-secondary" aria-pressed="false">Show figures</button>
+    {% endif %}
+  </div>
   <p>Breakdown by label/category from saved labelled data. Rows with <strong>no label</strong> for that statement month are listed as <strong>Unlabelled revenue</strong> (money in) or <strong>Unlabelled expense</strong> (money out). Direction uses the same cash-flow rule as the rest of the app: <strong>negative debits</strong> are treated as signed outflows when your CSV uses that convention; classical debit/credit columns are combined so inflow vs outflow stays correct. Other non–revenue/expense label categories stay in the detail table but don’t change the net rows below.</p>
+
+  <div id="pl-figures-wrap" class="pl-figures-wrap{% if overall or pl_by_month %} pl-figures-masked{% endif %}">
   {% if overall %}
     <h2>Overall ({{ overall.months_count }} month{{ overall.months_count|pluralize }} shown)</h2>
     <table style="margin-bottom: 2rem;">
@@ -60,4 +168,54 @@
   {% empty %}
     <p>No P&amp;L data. Save labelled data from an upload to see P&amp;L here.</p>
   {% endfor %}
+  </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+  <script>
+    (function() {
+      var el = document.getElementById('webhook-panel-body');
+      if (el) {
+        function appendLine(s) {
+          var t = (typeof s === 'string') ? s : JSON.stringify(s, null, 2);
+          if (el.textContent) el.textContent += '\n---\n';
+          el.textContent += t;
+          el.scrollTop = el.scrollHeight;
+        }
+        window.gymAccountingWebhookPanel = {
+          append: appendLine,
+          clear: function() { el.textContent = ''; },
+          set: function(s) { el.textContent = (typeof s === 'string') ? s : JSON.stringify(s, null, 2); }
+        };
+      }
+
+      var wrap = document.getElementById('pl-figures-wrap');
+      var btn = document.getElementById('pl-toggle-figures');
+      if (!wrap || !btn) return;
+
+      var storageKey = 'plFiguresVisible';
+
+      function applyVisible(show) {
+        if (show) {
+          wrap.classList.remove('pl-figures-masked');
+          btn.textContent = 'Hide figures';
+          btn.setAttribute('aria-pressed', 'true');
+        } else {
+          wrap.classList.add('pl-figures-masked');
+          btn.textContent = 'Show figures';
+          btn.setAttribute('aria-pressed', 'false');
+        }
+        try { sessionStorage.setItem(storageKey, show ? '1' : '0'); } catch (e) {}
+      }
+
+      try {
+        if (sessionStorage.getItem(storageKey) === '1') applyVisible(true);
+      } catch (e) {}
+
+      btn.addEventListener('click', function() {
+        applyVisible(wrap.classList.contains('pl-figures-masked'));
+      });
+    })();
+  </script>
 {% endblock %}

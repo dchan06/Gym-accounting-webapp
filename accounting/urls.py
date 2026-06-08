@@ -14,4 +14,7 @@ urlpatterns = [
     path('pl/', views.pl, name='pl'),
     path('agm/<str:month_str>/download/', views.download_agm_csv, name='download_agm'),
     path('labels/', views.labels_manage, name='labels'),
+    path('api/transactions/', views.api_transactions, name='api_transactions'),
+    path('hooks/n8n/', views.n8n_inbound_webhook, name='n8n_inbound_webhook'),
+    path('api/pl/n8n-last/', views.n8n_webhook_last, name='n8n_webhook_last'),
 ]
